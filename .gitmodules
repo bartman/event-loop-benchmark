@@ -1,0 +1,15 @@
+[submodule "libuev"]
+	path = libuev
+	url = https://github.com/troglobit/libuev
+[submodule "picoev"]
+	path = picoev
+	url = https://github.com/kazuho/picoev
+[submodule "libev"]
+	path = libev
+	url = https://github.com/enki/libev
+[submodule "libevent"]
+	path = libevent
+	url = https://github.com/libevent/libevent
+[submodule "libuv"]
+	path = libuv
+	url = https://github.com/libuv/libuv
