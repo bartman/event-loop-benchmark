@@ -237,7 +237,7 @@ run_once(void)
 	switch (library) {
 #if WITH_libev
 	case LIB_libev:
-		event_loop(EVLOOP_ONCE | EVLOOP_NONBLOCK);
+		ev_run(ev_loop0, EVRUN_ONCE | EVRUN_NOWAIT);
 		break;
 #endif
 #if WITH_libevent
@@ -279,7 +279,7 @@ run_once(void)
 			switch (library) {
 #if WITH_libev
 			case LIB_libev:
-				event_loop(EVLOOP_ONCE | EVLOOP_NONBLOCK);
+				ev_run(ev_loop0, EVRUN_ONCE | EVRUN_NOWAIT);
 				break;
 #endif
 #if WITH_libevent
