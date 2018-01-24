@@ -77,10 +77,16 @@ picoev_loop* pe_loop;
 static int count, writes, fired;
 static int *pipes;
 static int num_pipes, num_active, num_writes, num_runs, use_pipes;
-static struct event *events;
 static int timers;
+
+#if WITH_libevent
+static struct event *events;
+#endif
+
+#if WITH_libev
 static struct ev_io *evio;
 static struct ev_timer *evto;
+#endif
 
 static enum libraries {
 #if WITH_libev
@@ -420,18 +426,22 @@ main (int argc, char **argv)
 	picoev_init(num_pipes * 2 + 20);
 	pe_loop = picoev_create_loop(60);
 #endif
+
 #if WITH_libev
 	evio = calloc(num_pipes, sizeof(struct ev_io));
+	assert(evio);
 	evto = calloc(num_pipes, sizeof(struct ev_timer));
+	assert(evto);
 #endif
-	events = calloc(num_pipes, sizeof(struct event));
-	pipes = calloc(num_pipes * 2, sizeof(int));
-	if (events == NULL || pipes == NULL) {
-		perror("malloc");
-		exit(1);
-	}
 
+#if WITH_libevent
+	events = calloc(num_pipes, sizeof(struct event));
+	assert(events);
 	event_init();
+#endif
+
+	pipes = calloc(num_pipes * 2, sizeof(int));
+	assert(pipes);
 
 	for (cp = pipes, i = 0; i < num_pipes; i++, cp += 2) {
 #if WITH_libev
