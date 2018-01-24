@@ -1,13 +1,17 @@
 LIBRARIES = libev libevent libuev libuv picoev
 
-LIB_libev    = libev/libev.la
-LIB_libevent = libevent/libevent.la
-LIB_libuev   = libuev/src/libuev.la
-LIB_libuv    = libuv/libuv.la
-LIB_picoev   = picoev/libpicoev.so
+LIB_libev    = ${OBJDIR}/libev/lib/libev.a
+LIB_libevent = ${OBJDIR}/libevent/lib/libevent.a
+LIB_libuev   = ${OBJDIR}/libuev/lib/libuev.a
+LIB_libuv    = ${OBJDIR}/libuv/lib/libuv.a
+LIB_picoev   = ${OBJDIR}/picoev/lib/libpicoev.a
 LIB_TARGETS = $(foreach lib,${LIBRARIES},${LIB_${lib}})
 
-TARGETS = ${LIB_TARGETS}
+TOP      = $(shell pwd)
+OBJ      = _obj
+OBJDIR   = ${TOP}/${OBJ}
+
+TARGETS  = ${LIB_TARGETS}
 
 # ----------------------------------------------------------------------------
 
@@ -26,16 +30,24 @@ libev/Makefile:
 libev/libev.la: libev/Makefile
 	make -C libev
 
+${OBJDIR}/libev/lib/libev.a: libev/libev.la
+	mkdir -p ${OBJDIR}/libev
+	make -C libev install prefix=${OBJDIR}/libev
+
 # --- libevent ---------------------------------------------------------------
 
 libevent/configure:
 	cd libevent && ./autogen.sh
 
 libevent/Makefile: libevent/configure
-	cd libevent && ./configure
+	cd libevent && CC='gcc -m64' ./configure
 
 libevent/libevent.la: libevent/Makefile
 	make -C libevent
+
+${OBJDIR}/libevent/lib/libevent.a: libevent/libevent.la
+	mkdir -p ${OBJDIR}/libevent
+	make -C libevent install prefix=${OBJDIR}/libevent
 
 # --- libuev -----------------------------------------------------------------
 
@@ -48,6 +60,10 @@ libuev/Makefile: libuev/configure
 libuev/src/libuev.la: libuev/Makefile
 	make -C libuev
 
+${OBJDIR}/libuev/lib/libuev.a: libuev/src/libuev.la
+	mkdir -p ${OBJDIR}/libuev
+	make -C libuev install prefix=${OBJDIR}/libuev
+
 # --- libuv ------------------------------------------------------------------
 
 libuv/configure:
@@ -59,8 +75,18 @@ libuv/Makefile: libuv/configure
 libuv/libuv.la: libuv/Makefile
 	make -C libuv
 
+${OBJDIR}/libuv/lib/libuv.a: libuv/libuv.la
+	mkdir -p ${OBJDIR}/libuv
+	make -C libuv install prefix=${OBJDIR}/libuv
+
 # --- picoev -----------------------------------------------------------------
 
-picoev/libpicoev.so:
+picoev/libpicoev.a:
 	make -C picoev CC=gcc LINUX_BUILD=1 CC_RELEASE_FLAGS=-O2 CC_DEBUG_FLAGS=-g
+
+${OBJDIR}/picoev/lib/libpicoev.a: picoev/libpicoev.a
+	mkdir -p ${OBJDIR}/picoev/lib
+	cp picoev/libpicoev.a ${OBJDIR}/picoev/lib
+	mkdir -p ${OBJDIR}/picoev/include
+	cp picoev/picoev.h ${OBJDIR}/picoev/include
 
