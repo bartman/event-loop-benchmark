@@ -82,7 +82,7 @@ static struct ev_timer *evto;
 void
 read_cb(int fd, short which, void *arg)
 {
-	int idx = (int) arg, widx = idx + 1;
+	intptr_t idx = (intptr_t) arg, widx = idx + 1;
 	u_char ch;
 
         if (timers)
@@ -148,7 +148,8 @@ timer_cb (struct ev_timer *w, int revents)
 struct timeval *
 run_once(void)
 {
-	int *cp, i, space;
+	intptr_t i;
+	int *cp, space;
 	static struct timeval ta, ts, te, tv;
 
 	gettimeofday(&ta, NULL);

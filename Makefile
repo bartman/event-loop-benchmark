@@ -11,7 +11,17 @@ TOP      = $(shell pwd)
 OBJ      = _obj
 OBJDIR   = ${TOP}/${OBJ}
 
-TARGETS  = ${LIB_TARGETS}
+TARGETS  = ${LIB_TARGETS} bench
+
+CCFLAGS  = -O2
+INCLUDES = _obj/libev/include \
+	   _obj/libevent/include \
+	   _obj/libuev/include \
+	   _obj/libuv/include \
+	   _obj/picoev/include
+CPPFLAGS = $(foreach dir,${INCLUDES},-I${dir})
+LDFLAGS  =
+LIBS     = ${LIB_picoev} ${LIB_libevent}
 
 # ----------------------------------------------------------------------------
 
@@ -19,8 +29,8 @@ all: ${TARGETS}
 
 # --- bench ------------------------------------------------------------------
 
-bench:
-
+bench: bench.c ${LIB_TARGETS}
+	${CC} ${CCFLAGS} ${CPPFLAGS} $< -o $@ ${LDFLAGS} ${LIBS}
 
 # --- libev ------------------------------------------------------------------
 
