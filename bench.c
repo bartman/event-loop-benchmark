@@ -72,7 +72,7 @@ struct ev_loop *ev_loop0;
 
 static int count, writes, fired;
 static int *pipes;
-static int num_pipes, num_active, num_writes, num_runs;
+static int num_pipes, num_active, num_writes, num_runs, use_pipes;
 static struct event *events;
 static int timers, native;
 static struct ev_io *evio;
@@ -86,33 +86,29 @@ read_cb(int fd, short which, void *arg)
 	intptr_t idx = (intptr_t) arg, widx = idx + 1;
 	u_char ch;
 
-        if (timers)
-          {
-	    if (native == 2) {
+	if (timers) {
+		if (native == 2) {
 #if PICOEV
-	      picoev_set_timeout(pe_loop, fd, 10);
-	      drand48();
+			picoev_set_timeout(pe_loop, fd, 10);
+			drand48();
 #else
-	      abort();
+			abort();
 #endif
-	    } else if (native)
-              {
+		} else if (native) {
 #if LIBEV
-                evto [idx].repeat = 10. + drand48 ();
-                ev_timer_again (ev_loop0, &evto [idx]);
+			evto [idx].repeat = 10. + drand48 ();
+			ev_timer_again (ev_loop0, &evto [idx]);
 #else
-                abort ();
+			abort ();
 #endif
-              }
-            else
-              {
-                struct timeval tv;
-                event_del (&events [idx]);
-                tv.tv_sec  = 10;
-                tv.tv_usec = drand48() * 1e6;
-                event_add(&events[idx], &tv);
-              }
-          }
+		} else {
+			struct timeval tv;
+			event_del (&events [idx]);
+			tv.tv_sec  = 10;
+			tv.tv_usec = drand48() * 1e6;
+			event_add(&events[idx], &tv);
+		}
+	}
 
 	count += read(fd, &ch, sizeof(ch));
 	if (writes) {
@@ -155,48 +151,45 @@ run_once(void)
 
 	gettimeofday(&ta, NULL);
 	for (cp = pipes, i = 0; i < num_pipes; i++, cp += 2) {
-	  if (native == 2) {
+		if (native == 2) {
 #if PICOEV
-	    if (picoev_is_active(pe_loop, cp[0])) {
-	      picoev_del(pe_loop, cp[0]);
-	    }
-	    picoev_add(pe_loop, cp[0], PICOEV_READ, 10, cb_picoev, (void*)i);
-	    drand48();
+			if (picoev_is_active(pe_loop, cp[0])) {
+				picoev_del(pe_loop, cp[0]);
+			}
+			picoev_add(pe_loop, cp[0], PICOEV_READ, 10, cb_picoev, (void*)i);
+			drand48();
 #else
-	    abort();
+			abort();
 #endif
-	  } else if (native)
-            {
+		} else if (native) {
 #if LIBEV
-              if (ev_is_active (&evio [i]))
-                ev_io_stop (ev_loop0, &evio [i]);
+			if (ev_is_active (&evio [i]))
+				ev_io_stop (ev_loop0, &evio [i]);
 
-              ev_io_set (&evio [i], cp [0], EV_READ);
-              ev_io_start (ev_loop0, &evio [i]);
+			ev_io_set (&evio [i], cp [0], EV_READ);
+			ev_io_start (ev_loop0, &evio [i]);
 
-              evto [i].repeat = 10. + drand48 ();
-              ev_timer_again (ev_loop0, &evto [i]);
+			evto [i].repeat = 10. + drand48 ();
+			ev_timer_again (ev_loop0, &evto [i]);
 #else
-              abort ();
+			abort ();
 #endif
-            }
-          else
-            {
-		if (events[i].ev_base)
-			event_del(&events[i]);
-		event_set(&events[i], cp[0], EV_READ | EV_PERSIST, read_cb, (void *) i);
-                tv.tv_sec  = 10.;
-                tv.tv_usec = drand48() * 1e6;
-		event_add(&events[i], timers ? &tv : 0);
-            }
+		} else {
+			if (events[i].ev_base)
+				event_del(&events[i]);
+			event_set(&events[i], cp[0], EV_READ | EV_PERSIST, read_cb, (void *) i);
+			tv.tv_sec  = 10.;
+			tv.tv_usec = drand48() * 1e6;
+			event_add(&events[i], timers ? &tv : 0);
+		}
 	}
 
 #if PICOEV
 	if (native == 2) {
-	  picoev_loop_once(pe_loop, 0);
+		picoev_loop_once(pe_loop, 0);
 	} else
 #endif
-	event_loop(EVLOOP_ONCE | EVLOOP_NONBLOCK);
+		event_loop(EVLOOP_ONCE | EVLOOP_NONBLOCK);
 
 	fired = 0;
 	space = num_pipes / num_active;
@@ -206,28 +199,29 @@ run_once(void)
 
 	count = 0;
 	writes = num_writes;
-	{ int xcount = 0;
-	gettimeofday(&ts, NULL);
-	do {
+	{
+		int xcount = 0;
+		gettimeofday(&ts, NULL);
+		do {
 #if PICOEV
-	  if (native == 2) {
-	    picoev_loop_once(pe_loop, 0);
-	  } else
+			if (native == 2) {
+				picoev_loop_once(pe_loop, 0);
+			} else
 #endif
-	        event_loop(EVLOOP_ONCE | EVLOOP_NONBLOCK);
-		xcount++;
-	} while (count != fired);
-	gettimeofday(&te, NULL);
+				event_loop(EVLOOP_ONCE | EVLOOP_NONBLOCK);
+			xcount++;
+		} while (count != fired);
+		gettimeofday(&te, NULL);
 
-	//if (xcount != count) fprintf(stderr, "Xcount: %d, Rcount: %d\n", xcount, count);
+		//if (xcount != count) fprintf(stderr, "Xcount: %d, Rcount: %d\n", xcount, count);
 	}
 
 	timersub(&te, &ta, &ta);
 	timersub(&te, &ts, &ts);
-		fprintf(stdout, "%8ld %8ld\n",
-			ta.tv_sec * 1000000L + ta.tv_usec,
-			ts.tv_sec * 1000000L + ts.tv_usec
-                        );
+	fprintf(stdout, "%8ld %8ld\n",
+		ta.tv_sec * 1000000L + ta.tv_usec,
+		ts.tv_sec * 1000000L + ts.tv_usec
+	       );
 
 	return (&te);
 }
@@ -237,17 +231,18 @@ main (int argc, char **argv)
 {
 	struct rlimit rl;
 	intptr_t i;
-	int c;
+	int c, rc;
 	struct timeval *tv;
 	int *cp;
 	extern char *optarg;
 
 	native = 0;
+	use_pipes = 0;
 	num_runs = 2;
 	num_pipes = 100;
 	num_active = 1;
 	num_writes = num_pipes;
-	while ((c = getopt(argc, argv, "n:a:r:w:te:")) != -1) {
+	while ((c = getopt(argc, argv, "n:a:r:w:pte:")) != -1) {
 		switch (c) {
 		case 'n':
 			num_pipes = atoi(optarg);
@@ -280,8 +275,11 @@ main (int argc, char **argv)
 				exit(1);
 			}
 			break;
+		case 'p':
+			use_pipes = 1;
+			break;
 		case 't':
-                        timers = 1;
+			timers = 1;
 			break;
 		default:
 			fprintf(stderr, "Illegal argument \"%c\"\n", c);
@@ -322,15 +320,15 @@ main (int argc, char **argv)
 			ev_loop0 = ev_default_loop(0);
 		}
 #endif
-#ifdef USE_PIPES
-		if (pipe(cp) == -1) {
-#else
-			if (socketpair(AF_UNIX, SOCK_STREAM, 0, cp) == -1) {
-#endif
-				perror("pipe");
-				exit(1);
-			}
+		if (use_pipes)
+			rc = pipe(cp);
+		else
+			rc = socketpair(AF_UNIX, SOCK_STREAM, 0, cp);
+		if (rc == -1) {
+			perror(use_pipes ? "pipe" : "socketpair");
+			exit(1);
 		}
+	}
 
 	for (i = 0; i < num_runs; i++) {
 		tv = run_once();
