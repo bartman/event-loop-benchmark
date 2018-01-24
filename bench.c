@@ -63,15 +63,16 @@
 # include "picoev.h"
 picoev_loop* pe_loop;
 #endif
-#if NATIVE
+#if LIBEV
 # include "ev.h"
+struct ev_loop *ev_loop0;
 #endif
 #include <event.h>
 
 
 static int count, writes, fired;
 static int *pipes;
-static int num_pipes, num_active, num_writes;
+static int num_pipes, num_active, num_writes, num_runs;
 static struct event *events;
 static int timers, native;
 static struct ev_io *evio;
@@ -96,9 +97,9 @@ read_cb(int fd, short which, void *arg)
 #endif
 	    } else if (native)
               {
-#if NATIVE
+#if LIBEV
                 evto [idx].repeat = 10. + drand48 ();
-                ev_timer_again (&evto [idx]);
+                ev_timer_again (ev_loop0, &evto [idx]);
 #else
                 abort ();
 #endif
@@ -127,21 +128,21 @@ read_cb(int fd, short which, void *arg)
 void
 cb_picoev(picoev_loop* loop, int fd, int revents, void* cb_arg)
 {
-  read_cb(fd, revents, cb_arg);
+	read_cb(fd, revents, cb_arg);
 }
 #endif
 
-#if NATIVE
+#if LIBEV
 void
-read_thunk(struct ev_io *w, int revents)
+read_thunk(struct ev_loop *loop, struct ev_io *w, int revents)
 {
-  read_cb (w->fd, revents, w->data);
+	read_cb (w->fd, revents, w->data);
 }
 
 void
-timer_cb (struct ev_timer *w, int revents)
+timer_cb (struct ev_loop *loop, struct ev_timer *w, int revents)
 {
-  assert(0);
+	assert(0);
 }
 #endif
 
@@ -166,22 +167,23 @@ run_once(void)
 #endif
 	  } else if (native)
             {
-#if NATIVE
+#if LIBEV
               if (ev_is_active (&evio [i]))
-                ev_io_stop (&evio [i]);
+                ev_io_stop (ev_loop0, &evio [i]);
 
               ev_io_set (&evio [i], cp [0], EV_READ);
-              ev_io_start (&evio [i]);
+              ev_io_start (ev_loop0, &evio [i]);
 
               evto [i].repeat = 10. + drand48 ();
-              ev_timer_again (&evto [i]);
+              ev_timer_again (ev_loop0, &evto [i]);
 #else
               abort ();
 #endif
             }
           else
             {
-		event_del(&events[i]);
+		if (events[i].ev_base)
+			event_del(&events[i]);
 		event_set(&events[i], cp[0], EV_READ | EV_PERSIST, read_cb, (void *) i);
                 tv.tv_sec  = 10.;
                 tv.tv_usec = drand48() * 1e6;
@@ -234,15 +236,18 @@ int
 main (int argc, char **argv)
 {
 	struct rlimit rl;
-	int i, c;
+	intptr_t i;
+	int c;
 	struct timeval *tv;
 	int *cp;
 	extern char *optarg;
 
+	native = 0;
+	num_runs = 2;
 	num_pipes = 100;
 	num_active = 1;
 	num_writes = num_pipes;
-	while ((c = getopt(argc, argv, "n:a:w:te:")) != -1) {
+	while ((c = getopt(argc, argv, "n:a:r:w:te:")) != -1) {
 		switch (c) {
 		case 'n':
 			num_pipes = atoi(optarg);
@@ -250,16 +255,30 @@ main (int argc, char **argv)
 		case 'a':
 			num_active = atoi(optarg);
 			break;
+		case 'r':
+			num_runs = atoi(optarg);
+			break;
 		case 'w':
 			num_writes = atoi(optarg);
 			break;
 		case 'e':
 #if PICOEV
-		  if (strcmp(optarg, "picoev") == 0) {
-		    native = 2;
-		  } else
+			if (strcmp(optarg, "picoev") == 0) {
+				native = 2;
+			} else
 #endif
-                        native = 1;
+#if LIBEV
+			if (strcmp(optarg, "libev") == 0) {
+				native = 1;
+			} else
+#endif
+			if (strcmp(optarg, "libevent") == 0) {
+				native = 0;
+			} else {
+				fprintf(stderr, "unknown event loop: \"%s\"\n",
+					optarg);
+				exit(1);
+			}
 			break;
 		case 't':
                         timers = 1;
@@ -278,10 +297,10 @@ main (int argc, char **argv)
 #endif
 
 #if PICOEV
-	picoev_init(num_pipes * 2 + 10);
+	picoev_init(num_pipes * 2 + 20);
 	pe_loop = picoev_create_loop(60);
 #endif
-#if NATIVE
+#if LIBEV
 	evio = calloc(num_pipes, sizeof(struct ev_io));
 	evto = calloc(num_pipes, sizeof(struct ev_timer));
 #endif
@@ -295,24 +314,25 @@ main (int argc, char **argv)
 	event_init();
 
 	for (cp = pipes, i = 0; i < num_pipes; i++, cp += 2) {
-#if NATIVE
-          if (native) {
-            ev_init (&evto [i], timer_cb);
-            ev_init (&evio [i], read_thunk);
-            evio [i].data = (void *)i;
-          }
+#if LIBEV
+		if (native) {
+			ev_init (&evto [i], timer_cb);
+			ev_init (&evio [i], read_thunk);
+			evio [i].data = (void *)i;
+			ev_loop0 = ev_default_loop(0);
+		}
 #endif
 #ifdef USE_PIPES
 		if (pipe(cp) == -1) {
 #else
-		if (socketpair(AF_UNIX, SOCK_STREAM, 0, cp) == -1) {
+			if (socketpair(AF_UNIX, SOCK_STREAM, 0, cp) == -1) {
 #endif
-			perror("pipe");
-			exit(1);
+				perror("pipe");
+				exit(1);
+			}
 		}
-	}
 
-	for (i = 0; i < 2; i++) {
+	for (i = 0; i < num_runs; i++) {
 		tv = run_once();
 	}
 
