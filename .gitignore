@@ -1,1 +1,4 @@
 *~
+*.swp
+_obj
+bench
