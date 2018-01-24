@@ -31,7 +31,7 @@ all: ${TARGETS}
 
 bench: bench.c ${LIB_TARGETS} Makefile
 	${CC} ${CCFLAGS} ${CPPFLAGS} $< -o $@ ${LDFLAGS} ${LIBS} \
-		-DPICOEV -DLIBEV
+		-DWITH_picoev -DWITH_libev -DWITH_libevent
 
 # --- libev ------------------------------------------------------------------
 

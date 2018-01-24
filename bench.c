@@ -59,26 +59,46 @@
 #include <unistd.h>
 #include <errno.h>
 
-#if PICOEV
-# include "picoev.h"
-picoev_loop* pe_loop;
-#endif
-#if LIBEV
+#if WITH_libev
 # include "ev.h"
 struct ev_loop *ev_loop0;
 #endif
+
+#if WITH_libevent
 #include <event.h>
+#endif
+
+#if WITH_picoev
+# include "picoev.h"
+picoev_loop* pe_loop;
+#endif
 
 
 static int count, writes, fired;
 static int *pipes;
 static int num_pipes, num_active, num_writes, num_runs, use_pipes;
 static struct event *events;
-static int timers, native;
+static int timers;
 static struct ev_io *evio;
 static struct ev_timer *evto;
 
-
+static enum libraries {
+#if WITH_libev
+	LIB_libev    = 0,
+#endif
+#if WITH_libevent
+	LIB_libevent = 1,
+#endif
+#if WITH_libuev
+	LIB_libuev   = 2,
+#endif
+#if WITH_libuv
+	LIB_libuv    = 3,
+#endif
+#if WITH_picoev
+	LIB_picoev   = 4,
+#endif
+} library;
 
 void
 read_cb(int fd, short which, void *arg)
@@ -87,26 +107,42 @@ read_cb(int fd, short which, void *arg)
 	u_char ch;
 
 	if (timers) {
-		if (native == 2) {
-#if PICOEV
-			picoev_set_timeout(pe_loop, fd, 10);
-			drand48();
-#else
-			abort();
-#endif
-		} else if (native) {
-#if LIBEV
-			evto [idx].repeat = 10. + drand48 ();
+		double drand = drand48();
+		switch (library) {
+#if WITH_libev
+		case LIB_libev:
+			evto [idx].repeat = 10. + drand;
 			ev_timer_again (ev_loop0, &evto [idx]);
-#else
-			abort ();
+			break;
 #endif
-		} else {
+#if WITH_libevent
+		case LIB_libevent:
+			{
 			struct timeval tv;
 			event_del (&events [idx]);
 			tv.tv_sec  = 10;
-			tv.tv_usec = drand48() * 1e6;
+			tv.tv_usec = drand * 1e6;
 			event_add(&events[idx], &tv);
+			}
+			break;
+#endif
+#if WITH_libuev
+		case LIB_libuev:
+			TODO;
+			break;
+#endif
+#if WITH_libuv
+		case LIB_libuv:
+			TODO;
+			break;
+#endif
+#if WITH_picoev
+		case LIB_picoev:
+			picoev_set_timeout(pe_loop, fd, 10);
+			break;
+#endif
+		default:
+			abort();
 		}
 	}
 
@@ -120,7 +156,7 @@ read_cb(int fd, short which, void *arg)
 	}
 }
 
-#if PICOEV
+#if WITH_picoev
 void
 cb_picoev(picoev_loop* loop, int fd, int revents, void* cb_arg)
 {
@@ -128,7 +164,7 @@ cb_picoev(picoev_loop* loop, int fd, int revents, void* cb_arg)
 }
 #endif
 
-#if LIBEV
+#if WITH_libev
 void
 read_thunk(struct ev_loop *loop, struct ev_io *w, int revents)
 {
@@ -151,45 +187,82 @@ run_once(void)
 
 	gettimeofday(&ta, NULL);
 	for (cp = pipes, i = 0; i < num_pipes; i++, cp += 2) {
-		if (native == 2) {
-#if PICOEV
-			if (picoev_is_active(pe_loop, cp[0])) {
-				picoev_del(pe_loop, cp[0]);
-			}
-			picoev_add(pe_loop, cp[0], PICOEV_READ, 10, cb_picoev, (void*)i);
-			drand48();
-#else
-			abort();
-#endif
-		} else if (native) {
-#if LIBEV
+		double drand = drand48();
+		switch (library) {
+#if WITH_libev
+		case LIB_libev:
 			if (ev_is_active (&evio [i]))
 				ev_io_stop (ev_loop0, &evio [i]);
 
 			ev_io_set (&evio [i], cp [0], EV_READ);
 			ev_io_start (ev_loop0, &evio [i]);
 
-			evto [i].repeat = 10. + drand48 ();
+			evto [i].repeat = 10. + drand;
 			ev_timer_again (ev_loop0, &evto [i]);
-#else
-			abort ();
+			break;
 #endif
-		} else {
+#if WITH_libevent
+		case LIB_libevent:
 			if (events[i].ev_base)
 				event_del(&events[i]);
 			event_set(&events[i], cp[0], EV_READ | EV_PERSIST, read_cb, (void *) i);
 			tv.tv_sec  = 10.;
-			tv.tv_usec = drand48() * 1e6;
+			tv.tv_usec = drand * 1e6;
 			event_add(&events[i], timers ? &tv : 0);
+			break;
+#endif
+#if WITH_libuev
+		case LIB_libuev:
+			TODO;
+			break;
+#endif
+#if WITH_libuv
+		case LIB_libuv:
+			TODO;
+			break;
+#endif
+#if WITH_picoev
+		case LIB_picoev:
+			if (picoev_is_active(pe_loop, cp[0])) {
+				picoev_del(pe_loop, cp[0]);
+			}
+			picoev_add(pe_loop, cp[0], PICOEV_READ, 10, cb_picoev, (void*)i);
+			break;
+#endif
+		default:
+			abort();
 		}
 	}
 
-#if PICOEV
-	if (native == 2) {
-		picoev_loop_once(pe_loop, 0);
-	} else
-#endif
+	switch (library) {
+#if WITH_libev
+	case LIB_libev:
 		event_loop(EVLOOP_ONCE | EVLOOP_NONBLOCK);
+		break;
+#endif
+#if WITH_libevent
+	case LIB_libevent:
+		event_loop(EVLOOP_ONCE | EVLOOP_NONBLOCK);
+		break;
+#endif
+#if WITH_libuev
+	case LIB_libuev:
+		TODO;
+		break;
+#endif
+#if WITH_libuv
+	case LIB_libuv:
+		TODO;
+		break;
+#endif
+#if WITH_picoev
+	case LIB_picoev:
+		picoev_loop_once(pe_loop, 0);
+		break;
+#endif
+	default:
+		abort();
+	}
 
 	fired = 0;
 	space = num_pipes / num_active;
@@ -203,12 +276,35 @@ run_once(void)
 		int xcount = 0;
 		gettimeofday(&ts, NULL);
 		do {
-#if PICOEV
-			if (native == 2) {
-				picoev_loop_once(pe_loop, 0);
-			} else
-#endif
+			switch (library) {
+#if WITH_libev
+			case LIB_libev:
 				event_loop(EVLOOP_ONCE | EVLOOP_NONBLOCK);
+				break;
+#endif
+#if WITH_libevent
+			case LIB_libevent:
+				event_loop(EVLOOP_ONCE | EVLOOP_NONBLOCK);
+				break;
+#endif
+#if WITH_libuev
+			case LIB_libuev:
+				TODO;
+				break;
+#endif
+#if WITH_libuv
+			case LIB_libuv:
+				TODO;
+				break;
+#endif
+#if WITH_picoev
+			case LIB_picoev:
+				picoev_loop_once(pe_loop, 0);
+				break;
+#endif
+			default:
+				abort();
+			}
 			xcount++;
 		} while (count != fired);
 		gettimeofday(&te, NULL);
@@ -236,7 +332,20 @@ main (int argc, char **argv)
 	int *cp;
 	extern char *optarg;
 
-	native = 0;
+#if WITH_libev
+	library = LIB_libev;
+#elif WITH_libevent
+	library = LIB_libevent;
+#elif WITH_libuev
+	library = LIB_libuev;
+#elif WITH_libuv
+	library = LIB_libuv;
+#elif WITH_picoev
+	library = LIB_picoev;
+#else
+#error nothing enabled
+#endif
+
 	use_pipes = 0;
 	num_runs = 2;
 	num_pipes = 100;
@@ -257,19 +366,32 @@ main (int argc, char **argv)
 			num_writes = atoi(optarg);
 			break;
 		case 'e':
-#if PICOEV
-			if (strcmp(optarg, "picoev") == 0) {
-				native = 2;
-			} else
-#endif
-#if LIBEV
+#if WITH_libev
 			if (strcmp(optarg, "libev") == 0) {
-				native = 1;
+				library = LIB_libev;
 			} else
 #endif
+#if WITH_libevent
 			if (strcmp(optarg, "libevent") == 0) {
-				native = 0;
-			} else {
+				library = LIB_libevent;
+			} else
+#endif
+#if WITH_libuev
+			if (strcmp(optarg, "libuev") == 0) {
+				library = LIB_libuev;
+			} else
+#endif
+#if WITH_libuv
+			if (strcmp(optarg, "libuv") == 0) {
+				library = LIB_libuv;
+			} else
+#endif
+#if WITH_picoev
+			if (strcmp(optarg, "picoev") == 0) {
+				library = LIB_picoev;
+			} else
+#endif
+			{
 				fprintf(stderr, "unknown event loop: \"%s\"\n",
 					optarg);
 				exit(1);
@@ -294,11 +416,11 @@ main (int argc, char **argv)
 	}
 #endif
 
-#if PICOEV
+#if WITH_picoev
 	picoev_init(num_pipes * 2 + 20);
 	pe_loop = picoev_create_loop(60);
 #endif
-#if LIBEV
+#if WITH_libev
 	evio = calloc(num_pipes, sizeof(struct ev_io));
 	evto = calloc(num_pipes, sizeof(struct ev_timer));
 #endif
@@ -312,8 +434,8 @@ main (int argc, char **argv)
 	event_init();
 
 	for (cp = pipes, i = 0; i < num_pipes; i++, cp += 2) {
-#if LIBEV
-		if (native) {
+#if WITH_libev
+		if (library == LIB_libev) {
 			ev_init (&evto [i], timer_cb);
 			ev_init (&evio [i], read_thunk);
 			evio [i].data = (void *)i;
