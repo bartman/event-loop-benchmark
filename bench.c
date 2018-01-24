@@ -58,6 +58,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <errno.h>
+#include <assert.h>
 
 #if WITH_libev
 # include "ev.h"

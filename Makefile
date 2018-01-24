@@ -11,15 +11,13 @@ TOP      = $(shell pwd)
 OBJ      = _obj
 OBJDIR   = ${TOP}/${OBJ}
 
-TARGETS  = ${LIB_TARGETS} bench
+BENCH_TARGETS = bench bench-libev bench-libevent bench-picoev
+
+TARGETS  = ${LIB_TARGETS} ${BENCH_TARGETS}
 
 CCFLAGS  = -Os -ggdb
-INCLUDES = _obj/libev/include \
-	   _obj/libevent/include \
-	   _obj/libuev/include \
-	   _obj/libuv/include \
-	   _obj/picoev/include
-CPPFLAGS = $(foreach dir,${INCLUDES},-I${dir})
+INCLUDES = $(foreach lib,${LIBRARIES},-I_obj/${lib}/include)
+CPPFLAGS = 
 LDFLAGS  =
 LIBS     = ${LIB_picoev} ${LIB_libevent} ${LIB_libev}
 
@@ -31,7 +29,19 @@ all: ${TARGETS}
 
 bench: bench.c ${LIB_TARGETS} Makefile
 	${CC} ${CCFLAGS} ${CPPFLAGS} $< -o $@ ${LDFLAGS} ${LIBS} \
-		-DWITH_picoev -DWITH_libev -DWITH_libevent
+		${INCLUDES} -DWITH_libev -DWITH_libevent -DWITH_picoev
+
+bench-libev: bench.c ${LIB_libev} Makefile
+	${CC} ${CCFLAGS} ${CPPFLAGS} $< -o $@ ${LDFLAGS} \
+		-I_obj/libev/include ${LIB_libev} -DWITH_libev
+
+bench-libevent: bench.c ${LIB_libevent} Makefile
+	${CC} ${CCFLAGS} ${CPPFLAGS} $< -o $@ ${LDFLAGS} \
+		-I_obj/libevent/include ${LIB_libevent} -DWITH_libevent
+
+bench-picoev: bench.c ${LIB_picoev} Makefile
+	${CC} ${CCFLAGS} ${CPPFLAGS} $< -o $@ ${LDFLAGS} \
+		-I_obj/picoev/include ${LIB_picoev} -DWITH_picoev
 
 # --- libev ------------------------------------------------------------------
 
