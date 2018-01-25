@@ -11,7 +11,7 @@ TOP      = $(shell pwd)
 OBJ      = _obj
 OBJDIR   = ${TOP}/${OBJ}
 
-BENCH_TARGETS = bench bench-libev bench-libevent bench-picoev
+BENCH_TARGETS = bench-libev bench-libevent bench-picoev bench-libuev
 
 TARGETS  = ${LIB_TARGETS} ${BENCH_TARGETS}
 
@@ -41,6 +41,14 @@ bench-libev: bench.c ${LIB_libev} Makefile
 bench-libevent: bench.c ${LIB_libevent} Makefile
 	${CC} ${CCFLAGS} ${CPPFLAGS} $< -o $@ ${LDFLAGS} \
 		-I_obj/libevent/include ${LIB_libevent} -DWITH_libevent
+
+bench-libuv: bench.c ${LIB_libuv} Makefile
+	${CC} ${CCFLAGS} ${CPPFLAGS} $< -o $@ ${LDFLAGS} \
+		-I_obj/libuv/include ${LIB_libuv} -DWITH_libuv
+
+bench-libuev: bench.c ${LIB_libuev} Makefile
+	${CC} ${CCFLAGS} ${CPPFLAGS} $< -o $@ ${LDFLAGS} \
+		-I_obj/libuev/include ${LIB_libuev} -DWITH_libuev
 
 bench-picoev: bench.c ${LIB_picoev} Makefile
 	${CC} ${CCFLAGS} ${CPPFLAGS} $< -o $@ ${LDFLAGS} \

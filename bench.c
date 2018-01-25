@@ -66,12 +66,22 @@ struct ev_loop *ev_loop0;
 #endif
 
 #if WITH_libevent
-#include <event.h>
+#include "event.h"
 #endif
 
 #if WITH_picoev
 # include "picoev.h"
 picoev_loop* pe_loop;
+#endif
+
+#if WITH_libuv
+#include "uv.h"
+uv_loop_t uv_loop;
+#endif
+
+#if WITH_libuev
+#include "uev/uev.h"
+uev_ctx_t uev_ctx;
 #endif
 
 
@@ -87,6 +97,10 @@ static struct event *events;
 #if WITH_libev
 static struct ev_io *evio;
 static struct ev_timer *evto;
+#endif
+
+#if WITH_libuev
+static uev_t *uev_watchers;
 #endif
 
 static enum libraries {
@@ -135,7 +149,7 @@ read_cb(int fd, short which, void *arg)
 #endif
 #if WITH_libuev
 		case LIB_libuev:
-			TODO;
+			abort();
 			break;
 #endif
 #if WITH_libuv
@@ -185,6 +199,13 @@ timer_cb (struct ev_loop *loop, struct ev_timer *w, int revents)
 }
 #endif
 
+#if WITH_libuev
+void uev_read_cb(uev_t *w, void *arg, int events)
+{
+	read_cb (w->fd, events, w->arg);
+}
+#endif
+
 struct timeval *
 run_once(void)
 {
@@ -220,7 +241,14 @@ run_once(void)
 #endif
 #if WITH_libuev
 		case LIB_libuev:
-			TODO;
+			if (uev_io_active(&uev_watchers[i])) {
+				uev_io_stop(&uev_watchers[i]);
+			}
+			{
+			int rc = uev_io_init(&uev_ctx, &uev_watchers[i],
+					     uev_read_cb, (void*)i, cp[0], UEV_READ);
+			assert(!rc);
+			}
 			break;
 #endif
 #if WITH_libuv
@@ -254,7 +282,8 @@ run_once(void)
 #endif
 #if WITH_libuev
 	case LIB_libuev:
-		TODO;
+		/* there are no timeouts on events, so cannot call a loop now */
+		//uev_run(&uev_ctx, UEV_ONCE);
 		break;
 #endif
 #if WITH_libuv
@@ -274,8 +303,9 @@ run_once(void)
 	fired = 0;
 	space = num_pipes / num_active;
 	space = space * 2;
-	for (i = 0; i < num_active; i++, fired++)
+	for (i = 0; i < num_active; i++, fired++) {
 		write(pipes[i * space + 1], "e", 1);
+	}
 
 	count = 0;
 	writes = num_writes;
@@ -296,7 +326,7 @@ run_once(void)
 #endif
 #if WITH_libuev
 			case LIB_libuev:
-				TODO;
+				uev_run(&uev_ctx, UEV_ONCE);
 				break;
 #endif
 #if WITH_libuv
@@ -439,6 +469,15 @@ main (int argc, char **argv)
 	events = calloc(num_pipes, sizeof(struct event));
 	assert(events);
 	event_init();
+#endif
+
+#if WITH_libuv
+	uv_loop_init(&uv_loop);
+#endif
+
+#if WITH_libuev
+	uev_watchers = calloc(num_pipes, sizeof(uev_t));
+	uev_init(&uev_ctx);
 #endif
 
 	pipes = calloc(num_pipes * 2, sizeof(int));
