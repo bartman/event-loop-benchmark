@@ -11,7 +11,7 @@ TOP      = $(shell pwd)
 OBJ      = _obj
 OBJDIR   = ${TOP}/${OBJ}
 
-BENCH_TARGETS = bench-libev bench-libevent bench-picoev bench-libuev
+BENCH_TARGETS = $(foreach lib,${LIBRARIES},bench-${lib})
 
 TARGETS  = ${LIB_TARGETS} ${BENCH_TARGETS}
 
@@ -44,7 +44,7 @@ bench-libevent: bench.c ${LIB_libevent} Makefile
 
 bench-libuv: bench.c ${LIB_libuv} Makefile
 	${CC} ${CCFLAGS} ${CPPFLAGS} $< -o $@ ${LDFLAGS} \
-		-I_obj/libuv/include ${LIB_libuv} -DWITH_libuv
+		-I_obj/libuv/include ${LIB_libuv} -DWITH_libuv -pthread
 
 bench-libuev: bench.c ${LIB_libuev} Makefile
 	${CC} ${CCFLAGS} ${CPPFLAGS} $< -o $@ ${LDFLAGS} \
@@ -53,6 +53,12 @@ bench-libuev: bench.c ${LIB_libuev} Makefile
 bench-picoev: bench.c ${LIB_picoev} Makefile
 	${CC} ${CCFLAGS} ${CPPFLAGS} $< -o $@ ${LDFLAGS} \
 		-I_obj/picoev/include ${LIB_picoev} -DWITH_picoev
+
+run: ${BENCH_TARGETS}
+	for lib in ${LIBRARIES} ; do \
+		echo $$lib ; \
+		time ./bench-$$lib -n 100000 -r 10 ; \
+	done
 
 # --- libev ------------------------------------------------------------------
 

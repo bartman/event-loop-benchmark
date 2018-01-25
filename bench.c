@@ -103,6 +103,10 @@ static struct ev_timer *evto;
 static uev_t *uev_watchers;
 #endif
 
+#if WITH_libuv
+static uv_poll_t *uv_polls;
+#endif
+
 static enum libraries {
 #if WITH_libev
 	LIB_libev    = 0,
@@ -154,7 +158,7 @@ read_cb(int fd, short which, void *arg)
 #endif
 #if WITH_libuv
 		case LIB_libuv:
-			TODO;
+			abort();
 			break;
 #endif
 #if WITH_picoev
@@ -206,6 +210,16 @@ void uev_read_cb(uev_t *w, void *arg, int events)
 }
 #endif
 
+#if WITH_libuv
+void uv_read_cb_func(uv_poll_t *p, int status, int events)
+{
+	intptr_t idx = p - uv_polls;
+	int fd = pipes[idx * 2];
+
+	read_cb(fd, events, (void*)idx);
+}
+#endif
+
 struct timeval *
 run_once(void)
 {
@@ -253,7 +267,10 @@ run_once(void)
 #endif
 #if WITH_libuv
 		case LIB_libuv:
-			TODO;
+			//uv_poll_stop(&uv_polls[i]);
+
+			uv_poll_init(&uv_loop, &uv_polls[i], cp[0]);
+			uv_poll_start(&uv_polls[i], UV_READABLE, uv_read_cb_func);
 			break;
 #endif
 #if WITH_picoev
@@ -288,7 +305,8 @@ run_once(void)
 #endif
 #if WITH_libuv
 	case LIB_libuv:
-		TODO;
+		/* there are no timeouts on events, so cannot call a loop now */
+		//uv_run(&uv_loop, UV_RUN_ONCE);
 		break;
 #endif
 #if WITH_picoev
@@ -331,7 +349,7 @@ run_once(void)
 #endif
 #if WITH_libuv
 			case LIB_libuv:
-				TODO;
+				uv_run(&uv_loop, UV_RUN_ONCE);
 				break;
 #endif
 #if WITH_picoev
@@ -472,6 +490,8 @@ main (int argc, char **argv)
 #endif
 
 #if WITH_libuv
+	uv_polls = calloc(num_pipes, sizeof(uv_poll_t));
+	assert(uv_polls);
 	uv_loop_init(&uv_loop);
 #endif
 
