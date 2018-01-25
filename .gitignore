@@ -2,3 +2,11 @@
 *.swp
 _obj
 bench
+bench-libev
+bench-libevent
+bench-libuev
+bench-libuv
+bench-picoev
+cscope.files
+cscope.out
+tags
