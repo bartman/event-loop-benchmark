@@ -25,6 +25,9 @@ LIBS     = ${LIB_picoev} ${LIB_libevent} ${LIB_libev}
 
 all: ${TARGETS}
 
+clean:
+	rm -f ${TARGETS}
+
 # --- bench ------------------------------------------------------------------
 
 bench: bench.c ${LIB_TARGETS} Makefile
